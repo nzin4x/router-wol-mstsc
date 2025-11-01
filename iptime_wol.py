@@ -164,6 +164,76 @@ class IPTimeWOL:
         print(f"📤 Sending WOL packet... (MAC: {mac_address})")
         self.send_wol(mac_address)
 
+    def get_port_link_status(self):
+        """Query router for port link status.
+
+        Returns:
+            List of port status dicts as returned by the router, e.g.
+            [{"type":"wan","port":1,"link":"1000f"}, {"type":"lan","port":4,"link":"100f"}, ...]
+        """
+        url = f"{self.router_url}/cgi/service.cgi"
+
+        headers = {
+            'Accept': '*/*',
+            'Accept-Language': 'ko;q=0.5',
+            'Cache-Control': 'no-store',
+            'Connection': 'keep-alive',
+            'Content-Type': 'application/json; charset=utf-8',
+            'Origin': self.router_url,
+            'Referer': f'{self.router_url}/ui/port_setup',
+            'Sec-GPC': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
+        }
+
+        data = {
+            "method": "port/link/status"
+        }
+
+        try:
+            response = self.session.post(
+                url,
+                headers=headers,
+                json=data,
+                verify=False,
+                timeout=10
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get('result', [])
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to query port link status: {e}")
+        except json.JSONDecodeError as e:
+            raise Exception(f"Router response parsing failed: {e}")
+
+    @staticmethod
+    def _link_value_is_up(link_value: Optional[str]) -> bool:
+        """Return True if link_value indicates the port link is up (e.g., '100f', '1000f')."""
+        if not link_value:
+            return False
+        try:
+            lv = str(link_value).lower()
+            return lv.endswith('f')  # e.g., 10f/100f/1000f
+        except Exception:
+            return False
+
+    def is_lan_port_up(self, lan_port: int) -> bool:
+        """Check if the given LAN port has link up.
+
+        Args:
+            lan_port: LAN port number (e.g., 1-4)
+
+        Returns:
+            True if link is up
+        """
+        status_list = self.get_port_link_status()
+        for item in status_list:
+            try:
+                if item.get('type') == 'lan' and int(item.get('port')) == int(lan_port):
+                    return self._link_value_is_up(item.get('link'))
+            except Exception:
+                continue
+        return False
+
 
 # Disable SSL warnings
 import urllib3

@@ -17,9 +17,9 @@ from iptime_wol import IPTimeWOL
 from mstsc_connector import MSTSCConnector
 
 
-def get_master_password(confirm=False):
+def get_master_password(confirm=False, prompt="Enter master password: "):
     """Get master password input"""
-    password = getpass.getpass("Enter master password: ")
+    password = getpass.getpass(prompt)
     
     if confirm:
         password_confirm = getpass.getpass("Confirm master password: ")
@@ -48,6 +48,12 @@ def initialize_config():
     # PC to wake information
     print("\n💻 Enter PC information to wake")
     mac_address = input("PC MAC address (e.g., 10:FF:E0:38:F4:D5): ").strip()
+    lan_port_str = input("Router LAN port number connected to PC (e.g., 1-4): ").strip()
+    try:
+        lan_port = int(lan_port_str)
+    except ValueError:
+        print("⚠️  Invalid port number, defaulting to port check disabled")
+        lan_port = 0
     
     # MSTSC information
     print("\n🖥️  Enter Remote Desktop information")
@@ -64,7 +70,8 @@ def initialize_config():
             "pw": router_pw
         },
         "wol": {
-            "mac_address": mac_address
+            "mac_address": mac_address,
+            "lan_port": lan_port
         },
         "rdp": {
             "server": rdp_server,
@@ -118,19 +125,48 @@ def change_master_password():
         sys.exit(1)
 
 
-def main():
-    """Main program"""
-    print("=" * 60)
-    print("🚀 WOL-MSTSC Program Start")
-    print("=" * 60)
-    
+def options_menu():
+    """Show an interactive options menu."""
     config_manager = ConfigManager()
     
-    # Check configuration file
-    if not config_manager.config_exists():
-        master_password = initialize_config()
-    else:
-        master_password = get_master_password(confirm=False)
+    while True:
+        print("\n" + "=" * 60)
+        print("Options")
+        print("=" * 60)
+        print("1. Configure and Run")
+        print("2. Change Master Password")
+        print("3. Reset Configuration")
+        print("4. Exit")
+        print()
+        choice = input("Select (1-4): ").strip()
+        
+        if choice == "1":
+            master_password = initialize_config()
+            run_main_flow(master_password)
+            break
+        elif choice == "2":
+            change_master_password()
+            break
+        elif choice == "3":
+            if config_manager.config_exists():
+                confirm = input("Are you sure you want to delete the configuration? (yes/no): ").strip().lower()
+                if confirm == "yes":
+                    config_manager.delete_config()
+                else:
+                    print("Cancelled.")
+            else:
+                print("No configuration file to delete.")
+            break
+        elif choice == "4":
+            print("Exiting.")
+            sys.exit(0)
+        else:
+            print("Invalid selection. Please choose 1-4.")
+
+
+def run_main_flow(master_password: str):
+    """Execute the main flow: load config, send WOL (check link), wait if needed, connect MSTSC."""
+    config_manager = ConfigManager()
     
     # Load and decrypt configuration
     try:
@@ -147,14 +183,15 @@ def main():
     print("📡 Sending WOL packet...")
     print("=" * 60)
     
+    wol_obj = None
     try:
-        wol = IPTimeWOL(
+        wol_obj = IPTimeWOL(
             router_url=config_data["router"]["url"],
             router_id=config_data["router"]["id"],
             router_pw=config_data["router"]["pw"]
         )
         
-        wol.send_wol_packet(config_data["wol"]["mac_address"])
+        wol_obj.send_wol_packet(config_data["wol"]["mac_address"])
         print("✅ WOL packet sent successfully")
         
     except Exception as e:
@@ -163,9 +200,27 @@ def main():
         if response != 'y':
             sys.exit(1)
     
-    # Wait for PC to boot
-    print("\n⏳ Waiting for PC to boot... (5 seconds)")
-    time.sleep(5)
+    # Check if PC is already on via link status
+    lan_port = config_data.get("wol", {}).get("lan_port", 0)
+    skip_wait = False
+    
+    if wol_obj and lan_port > 0:
+        try:
+            print(f"\n🔍 Checking LAN port {lan_port} status...")
+            if wol_obj.is_lan_port_up(lan_port):
+                print(f"✅ LAN port {lan_port} is already up (PC is on)")
+                skip_wait = True
+            else:
+                print(f"⏳ LAN port {lan_port} is down, PC will boot now")
+        except Exception as e:
+            print(f"⚠️  Could not check port status: {e}")
+    
+    # Wait for PC to boot if not already on
+    if not skip_wait:
+        print("\n⏳ Waiting for PC to boot... (5 seconds)")
+        time.sleep(5)
+    else:
+        print("\n⏩ Skipping boot wait")
     
     # MSTSC connection
     print("\n" + "=" * 60)
@@ -189,6 +244,31 @@ def main():
     print("\n" + "=" * 60)
     print("🎉 All tasks completed!")
     print("=" * 60)
+
+
+def main():
+    """Main program entry: prompt for master password immediately, options menu if blank."""
+    print("=" * 60)
+    print("🚀 WOL-MSTSC Program Start")
+    print("=" * 60)
+    
+    config_manager = ConfigManager()
+    
+    # Prompt for master password immediately (or press Enter for options)
+    master_password = get_master_password(confirm=False, prompt="Enter master password (or press Enter for options): ")
+    
+    if master_password == "":
+        # Show options menu
+        options_menu()
+        return
+    
+    # If no config exists, must initialize first
+    if not config_manager.config_exists():
+        print("\n⚠️  No configuration found. Starting initial setup...")
+        master_password = initialize_config()
+    
+    # Run the main flow
+    run_main_flow(master_password)
 
 
 if __name__ == "__main__":

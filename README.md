@@ -2,187 +2,185 @@
 
 **Wake-on-LAN + Remote Desktop Connection Tool**
 
-공유기를 통해 원격 PC를 깨우고 자동으로 원격 데스크톱에 연결하는 Windows 배치 프로그램입니다.
+A Windows utility that wakes up a remote PC via your router (Wake-on-LAN) and automatically connects to it via Remote Desktop (MSTSC).
 
-## 🎯 주요 기능
+## 🎯 Key Features
 
-- ✅ **마스터 패스워드 기반 보안**: 모든 민감한 정보를 마스터 패스워드로 암호화하여 저장
-- ✅ **IPTIME 공유기 지원**: IPTIME 공유기를 통한 WOL 패킷 전송
-- ✅ **자동 원격 데스크톱 연결**: WOL 후 자동으로 MSTSC 실행
-- ✅ **간편한 초기 설정**: 최초 실행 시 대화형 설정 프로세스
-- ✅ **마스터 패스워드 변경 기능**: 설정 유지하면서 패스워드 변경 가능
+- ✅ **Master Password Security**: All sensitive data (router & RDP credentials) encrypted with a master password
+- ✅ **IPTIME Router Support**: Send WOL packets via IPTIME routers
+- ✅ **Smart Boot Detection**: Checks router port link status to skip wait if PC is already on
+- ✅ **Automatic Remote Desktop**: Launches MSTSC after WOL
+- ✅ **Easy Setup**: Interactive configuration on first run
+- ✅ **Password Management**: Change master password or reset configuration anytime
 
-## 📋 요구사항
+## 📋 Requirements
 
 - **OS**: Windows 10/11
-- **Python**: 3.8 이상
-- **네트워크**: 공유기 관리 페이지 접근 가능
+- **Python**: 3.8 or higher (if not installed, Windows will prompt you to install from Microsoft Store)
+- **Network**: Access to your router's admin page
 
-## 🚀 설치 방법
+## 🚀 Installation
 
-### 1. Python 설치 확인
-
-```bash
-python --version
-```
-
-Python이 설치되어 있지 않다면 [python.org](https://www.python.org/downloads/)에서 다운로드하세요.
-
-### 2. 프로젝트 다운로드
+### 1. Download the Project
 
 ```bash
-git clone <repository-url>
-cd wol-mstsc
+git clone https://github.com/nzin4x/router-wol-mstsc.git
+cd router-wol-mstsc
 ```
 
-### 3. 필요한 패키지 설치
+### 2. Install Dependencies
+
+Run `run.bat` or manually install:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-또는 `run.bat`을 실행하면 자동으로 설치됩니다.
+## 📖 Usage
 
-## 📖 사용 방법
+### First Run (Initial Setup)
 
-### 최초 실행 (초기 설정)
-
-`run.bat` 파일을 더블 클릭하거나, 명령 프롬프트에서 실행하세요:
+Run `run.bat` (or `python wol_mstsc.py`):
 
 ```bash
 run.bat
 ```
 
-최초 실행 시 다음 정보를 입력해야 합니다:
+**You will be prompted for your master password immediately.**
 
-1. **마스터 패스워드**: 설정 파일을 암호화할 패스워드 (2회 입력)
-2. **공유기 정보**:
-   - URL (예: `http://192.168.0.1:80` 또는 `http://i.nz.pe.kr:8112`)
-   - 로그인 ID
-   - 로그인 PW
-3. **깨울 PC 정보**:
-   - MAC 주소 (예: `10:FF:E0:38:F4:D5`)
-4. **원격 데스크톱 정보**:
-   - 서버 주소 (예: `192.168.0.100:3389` 또는 `domain.com:3389`)
-   - RDP ID
-   - RDP PW
+- **Enter a password**: Proceeds with configuration or runs the WOL flow if already configured
+- **Press Enter (blank)**: Opens the options menu for setup, password change, or reset
 
-설정이 완료되면 `config.enc` 파일에 암호화되어 저장됩니다.
+#### Initial Configuration
 
-### 일반 실행
+On first run (or after selecting "Configure and Run" from the options menu), you'll provide:
 
-설정이 완료된 후에는 `run.bat`을 실행하고 마스터 패스워드만 입력하면 됩니다:
+1. **Master Password**: Entered twice to confirm (encrypts all settings)
+2. **Router Information** (IPTIME):
+   - URL (e.g., `http://192.168.0.1:80` or `http://14.39.91.241:8112`)
+   - Login ID
+   - Login Password
+3. **PC to Wake**:
+   - MAC Address (e.g., `10:FF:E0:38:F4:D5`)
+   - Router LAN Port Number (e.g., `4` if your PC is connected to LAN port 4; used to detect if PC is already on)
+4. **Remote Desktop**:
+   - Server Address (e.g., `192.168.0.100:3389` or `domain.com:3389`)
+   - RDP Username
+   - RDP Password
 
-1. 마스터 패스워드 입력
-2. 자동으로 공유기에 로그인하여 WOL 패킷 전송
-3. 5초 대기 (PC 부팅 시간)
-4. 원격 데스크톱 클라이언트 실행
+All configuration is saved encrypted in `config.enc`.
 
-## 🔧 고급 기능
+### Normal Use
 
-### 마스터 패스워드 변경
+After setup, just run `run.bat` and enter your master password when prompted. The program will:
 
-Python 직접 실행으로 패스워드를 변경할 수 있습니다:
+1. Login to your router
+2. Send WOL packet to wake your PC
+3. **Check if PC is already on** (via router port link status)
+4. Wait 5 seconds if needed, or skip wait if PC is already on
+5. Launch Remote Desktop (MSTSC) to connect
 
-```python
-from config_manager import ConfigManager
+## 🔧 Options Menu
 
-config = ConfigManager()
-config.change_master_password("기존패스워드", "새패스워드")
-```
+Press **Enter** (blank) at the master password prompt to access:
 
-### 설정 초기화
+- **Configure and Run**: Overwrite current config and proceed
+- **Change Master Password**: Update your master password (keeps all other settings)
+- **Reset Configuration**: Delete `config.enc` and start fresh
+- **Exit**: Quit the program
 
-설정 파일을 삭제하면 다음 실행 시 초기 설정이 다시 진행됩니다:
+You can also use command-line arguments:
 
 ```bash
-del config.enc
+python wol_mstsc.py --change-password
+python wol_mstsc.py --reset-config
 ```
 
-## 📁 파일 구조
+## 📁 Project Structure
 
 ```
-wol-mstsc/
-├── wol_mstsc.py          # 메인 프로그램
-├── crypto_utils.py       # 암호화/복호화 유틸리티
-├── config_manager.py     # 설정 관리
-├── iptime_wol.py         # IPTIME WOL 모듈
-├── mstsc_connector.py    # 원격 데스크톱 연결 모듈
-├── requirements.txt      # Python 패키지 의존성
-├── run.bat              # 실행 배치 파일
-├── config.enc           # 암호화된 설정 파일 (자동 생성)
-└── README.md            # 이 파일
+router-wol-mstsc/
+├── wol_mstsc.py          # Main program
+├── crypto_utils.py       # Encryption/decryption utilities
+├── config_manager.py     # Configuration management
+├── iptime_wol.py         # IPTIME WOL module
+├── mstsc_connector.py    # Remote Desktop connection
+├── requirements.txt      # Python dependencies
+├── run.bat               # Launcher batch script
+├── config.enc            # Encrypted config (auto-generated)
+└── README.md             # This file
 ```
 
-## 🔐 보안
+## 🔐 Security
 
-- 모든 민감한 정보(공유기 ID/PW, RDP ID/PW)는 마스터 패스워드로 암호화되어 저장됩니다.
-- `cryptography` 라이브러리의 Fernet (AES-128) 암호화를 사용합니다.
-- PBKDF2를 사용하여 마스터 패스워드로부터 암호화 키를 안전하게 생성합니다.
-- 설정 파일(`config.enc`)은 마스터 패스워드 없이는 복호화할 수 없습니다.
+- All sensitive data (router credentials, RDP credentials) is encrypted with your master password
+- Uses **Fernet (AES-128)** encryption from the `cryptography` library
+- **PBKDF2** key derivation with 100,000 iterations
+- `config.enc` cannot be decrypted without the correct master password
 
-## 🌐 지원 공유기
+## 🌐 Supported Routers
 
-현재 **IPTIME** 공유기만 지원합니다. (하드코딩됨)
+Currently supports **IPTIME** routers (hardcoded).
 
-향후 다른 공유기 지원을 추가할 수 있습니다:
-- 공유기별 WOL 인터페이스 모듈 추가
-- 설정에서 공유기 타입 선택 기능 추가
+Future enhancements may include:
+- Additional router brands (TP-Link, Asus, etc.)
+- Router type selection in configuration
 
-## ⚙️ 기술 스택
+## ⚙️ Tech Stack
 
-- **Python 3.8+**: 메인 프로그래밍 언어
-- **cryptography**: 데이터 암호화/복호화
-- **requests**: HTTP 통신 (공유기 API)
-- **Windows MSTSC**: 원격 데스크톱 클라이언트
+- **Python 3.8+**: Core language
+- **cryptography**: Encryption/decryption
+- **requests**: HTTP communication (router API)
+- **Windows MSTSC**: Remote Desktop client
 
-## 🐛 문제 해결
+## 🐛 Troubleshooting
 
-### "마스터 패스워드가 올바르지 않습니다"
+### "Failed to load configuration: Invalid master password..."
 
-- 마스터 패스워드를 잘못 입력했습니다. 정확히 입력하세요.
-- 설정 파일이 손상되었다면 `config.enc`를 삭제하고 다시 설정하세요.
+- You entered the wrong master password. Try again.
+- If the config file is corrupted, delete `config.enc` and reconfigure.
 
-### "공유기 연결 실패"
+### "Router connection failed"
 
-- 공유기 URL이 올바른지 확인하세요.
-- 네트워크 연결을 확인하세요.
-- 공유기 ID/PW가 정확한지 확인하세요.
+- Check your router URL is correct and accessible
+- Verify network connectivity
+- Confirm router login credentials
 
-### "WOL 패킷 전송 실패"
+### "WOL transmission failed"
 
-- MAC 주소가 올바른 형식인지 확인하세요 (예: `10:FF:E0:38:F4:D5`).
-- 공유기에서 WOL 기능이 활성화되어 있는지 확인하세요.
+- Ensure MAC address format is correct (e.g., `10:FF:E0:38:F4:D5`)
+- Confirm WOL is enabled on your router
+- Check that your PC supports Wake-on-LAN (enabled in BIOS/UEFI)
 
-### "원격 데스크톱 연결 실패"
+### "Remote Desktop connection failed"
 
-- 서버 주소가 올바른지 확인하세요.
-- 원격 PC가 부팅되었는지 확인하세요 (WOL 후 부팅 시간이 더 필요할 수 있음).
-- Windows 원격 데스크톱이 활성화되어 있는지 확인하세요.
+- Verify server address and port
+- Ensure the PC has finished booting (may take longer than 5 seconds)
+- Confirm Remote Desktop is enabled on the target PC
 
-## 📝 라이선스
+## 📌 Notes
 
-이 프로젝트는 개인 사용 목적으로 제작되었습니다.
+- **Boot Wait Time**: Defaults to 5 seconds. If port link status check is enabled (you provided a LAN port number), the wait is automatically skipped if the PC is already on.
+- **MSTSC Auto-Login**: If you have saved credentials in Remote Desktop, it will log in automatically. Otherwise, you'll need to enter credentials manually.
+- **RDP Port**: Default is 3389. Specify a custom port in the server address if needed (e.g., `192.168.0.100:13389`).
 
-## 👨‍💻 개발자
+## 📝 License
 
-- 버전: 1.0.0
-- 날짜: 2025-11-01
+This project is for personal use.
 
-## 🔄 버전 히스토리
+## 🔄 Version History
+
+### v1.1.0 (2025-11-01)
+- Added router port link status check to skip boot wait if PC is already on
+- Improved entry flow: master password prompt first, options menu on blank input
+- Fully translated to English
 
 ### v1.0.0 (2025-11-01)
-- 초기 버전 릴리스
-- IPTIME 공유기 WOL 지원
-- 마스터 패스워드 기반 설정 암호화
-- 자동 원격 데스크톱 연결
+- Initial release
+- IPTIME router WOL support
+- Master password-based encryption
+- Automatic Remote Desktop connection
 
-## 📌 참고사항
+## 🆘 Support
 
-- **WOL 대기 시간**: 기본 5초로 설정되어 있습니다. PC의 부팅 속도에 따라 `wol_mstsc.py`에서 `time.sleep(5)` 값을 조정할 수 있습니다.
-- **MSTSC 자동 로그인**: RDP 클라이언트에 자격 증명이 저장되어 있으면 자동으로 로그인됩니다. 그렇지 않으면 수동으로 로그인해야 합니다.
-- **포트 번호**: RDP 기본 포트는 3389입니다. 다른 포트를 사용하는 경우 서버 주소에 포트를 명시하세요 (예: `192.168.0.100:13389`).
-
-## 🆘 지원
-
-문제가 발생하거나 기능 요청이 있으면 이슈를 생성해주세요.
+If you encounter issues or have feature requests, please create an issue on GitHub.
