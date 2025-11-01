@@ -8,8 +8,8 @@ A Windows utility that wakes up a remote PC via your router (Wake-on-LAN) and au
 
 - ✅ **Master Password Security**: All sensitive data (router & RDP credentials) encrypted with a master password
 - ✅ **IPTIME Router Support**: Send WOL packets via IPTIME routers
-- ✅ **Smart Boot Detection**: Checks router port link status to skip wait if PC is already on
-- ✅ **Automatic Remote Desktop**: Launches MSTSC after WOL
+- ✅ **Real-Time Wake Detection**: Monitors router port status every second (up to 30s) and connects immediately when PC is ready
+- ✅ **Automatic Remote Desktop**: Launches MSTSC as soon as PC wakes up
 - ✅ **Easy Setup**: Interactive configuration on first run
 - ✅ **Password Management**: Change master password or reset configuration anytime
 
@@ -76,9 +76,9 @@ After setup, just run `run.bat` and enter your master password when prompted. Th
 
 1. Login to your router
 2. Send WOL packet to wake your PC
-3. **Check if PC is already on** (via router port link status)
-4. Wait 5 seconds if needed, or skip wait if PC is already on
-5. Launch Remote Desktop (MSTSC) to connect
+3. **Monitor port link status in real-time** (checks every second for up to 30 seconds)
+4. Launch Remote Desktop as soon as PC is detected awake
+5. If timeout (30s) without wake detection, prompt to continue or abort
 
 ## 🔧 Options Menu
 
@@ -160,7 +160,8 @@ Future enhancements may include:
 
 ## 📌 Notes
 
-- **Boot Wait Time**: Defaults to 5 seconds. If port link status check is enabled (you provided a LAN port number), the wait is automatically skipped if the PC is already on.
+- **Wake Detection**: If you configure a LAN port number, the program monitors port link status every second for up to 30 seconds. It connects immediately when the PC wakes up, or prompts to continue/abort after timeout.
+- **No Port Check**: If LAN port is set to 0 or invalid, uses a simple 5-second wait instead.
 - **MSTSC Auto-Login**: If you have saved credentials in Remote Desktop, it will log in automatically. Otherwise, you'll need to enter credentials manually.
 - **RDP Port**: Default is 3389. Specify a custom port in the server address if needed (e.g., `192.168.0.100:13389`).
 
@@ -169,6 +170,11 @@ Future enhancements may include:
 This project is for personal use.
 
 ## 🔄 Version History
+
+### v1.2.0 (2025-11-01)
+- **Real-time wake detection**: Monitors port status every second (up to 30s max)
+- Connects immediately when PC is detected awake
+- Timeout error with option to continue or abort after 30s
 
 ### v1.1.0 (2025-11-01)
 - Added router port link status check to skip boot wait if PC is already on

@@ -200,27 +200,39 @@ def run_main_flow(master_password: str):
         if response != 'y':
             sys.exit(1)
     
-    # Check if PC is already on via link status
+    # Wait for PC to wake up with real-time status check
     lan_port = config_data.get("wol", {}).get("lan_port", 0)
-    skip_wait = False
     
     if wol_obj and lan_port > 0:
-        try:
-            print(f"\n🔍 Checking LAN port {lan_port} status...")
-            if wol_obj.is_lan_port_up(lan_port):
-                print(f"✅ LAN port {lan_port} is already up (PC is on)")
-                skip_wait = True
-            else:
-                print(f"⏳ LAN port {lan_port} is down, PC will boot now")
-        except Exception as e:
-            print(f"⚠️  Could not check port status: {e}")
-    
-    # Wait for PC to boot if not already on
-    if not skip_wait:
-        print("\n⏳ Waiting for PC to boot... (5 seconds)")
-        time.sleep(5)
+        print(f"\n⏳ Waiting for PC to wake up (checking port {lan_port} status)...")
+        max_wait_seconds = 30
+        check_interval = 1  # Check every second
+        
+        for elapsed in range(0, max_wait_seconds, check_interval):
+            try:
+                if wol_obj.is_lan_port_up(lan_port):
+                    print(f"✅ PC is awake! (port {lan_port} up after {elapsed} seconds)")
+                    break
+            except Exception as e:
+                # Silent fail during checks, continue waiting
+                pass
+            
+            # Show progress
+            if elapsed % 5 == 0 and elapsed > 0:
+                print(f"   Still waiting... ({elapsed}/{max_wait_seconds}s)")
+            
+            time.sleep(check_interval)
+        else:
+            # Timeout: loop completed without break
+            print(f"\n❌ Timeout: Could not detect PC wake up after {max_wait_seconds} seconds")
+            print("   The PC may still be booting, or WOL may have failed.")
+            response = input("   Continue to Remote Desktop anyway? (y/n): ").strip().lower()
+            if response != 'y':
+                sys.exit(1)
     else:
-        print("\n⏩ Skipping boot wait")
+        # No port check configured, use simple wait
+        print("\n⏳ Waiting for PC to boot... (5 seconds, no port check configured)")
+        time.sleep(5)
     
     # MSTSC connection
     print("\n" + "=" * 60)
