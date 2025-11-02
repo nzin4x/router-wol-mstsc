@@ -130,19 +130,6 @@ def change_master_password():
 
 def install_command_to_path():
     r"""Install a shortcut command (wolrdp.bat) to %USERPROFILE%\.local\bin and guide PATH setup."""
-def uninstall_command_from_path():
-    r"""Remove wolrdp.bat from %USERPROFILE%\.local\bin."""
-    import os
-    user_bin = os.path.expandvars(r"%USERPROFILE%\.local\bin")
-    bat_path = os.path.join(user_bin, "wolrdp.bat")
-    if os.path.exists(bat_path):
-        try:
-            os.remove(bat_path)
-            print(f"\n✅ 'wolrdp.bat' removed from: {bat_path}")
-        except Exception as e:
-            print(f"\n[!] Failed to remove: {e}")
-    else:
-        print(f"\n[!] 'wolrdp.bat' not found in {user_bin}")
     import shutil
     import os
     user_bin = os.path.expandvars(r"%USERPROFILE%\.local\bin")
@@ -163,6 +150,20 @@ def uninstall_command_from_path():
         print("    Or add via Windows System Properties > Environment Variables > User PATH")
     else:
         print("\nYou can now press Win+R and type 'wolrdp' to launch the tool from anywhere!")
+
+def uninstall_command_from_path():
+    r"""Remove wolrdp.bat from %USERPROFILE%\.local\bin."""
+    import os
+    user_bin = os.path.expandvars(r"%USERPROFILE%\.local\bin")
+    bat_path = os.path.join(user_bin, "wolrdp.bat")
+    if os.path.exists(bat_path):
+        try:
+            os.remove(bat_path)
+            print(f"\n✅ 'wolrdp.bat' removed from: {bat_path}")
+        except Exception as e:
+            print(f"\n[!] Failed to remove: {e}")
+    else:
+        print(f"\n[!] 'wolrdp.bat' not found in {user_bin}")
 
 def options_menu():
     """Show an interactive options menu for multi-target config."""
