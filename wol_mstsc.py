@@ -30,22 +30,31 @@ def get_master_password(confirm=False, prompt="Enter master password: "):
     return password
 
 
-def initialize_config():
-    """Initial configuration process"""
+def initialize_config(master_password=None, add_target=False):
+    """Initial configuration or add new target"""
     print("=" * 60)
-    print("🔧 Starting initial configuration")
+    print("🔧 Starting configuration" if not add_target else "➕ Add new target")
     print("=" * 60)
-    
-    # Set master password
-    master_password = get_master_password(confirm=True)
-    
-    # Router information
+    config_manager = ConfigManager()
+    if not master_password:
+        master_password = get_master_password(confirm=True)
+    # Load or create config/credentials
+    try:
+        config = config_manager.load_config() if config_manager.config_exists() else {"targets": []}
+    except Exception:
+        config = {"targets": []}
+    try:
+        credentials = config_manager.load_credentials(master_password) if config_manager.credentials_exists() else {}
+    except Exception:
+        credentials = {}
+    # Target name
+    name = input("Target name (unique, e.g. 'main' or 'office'): ").strip() or f"target{len(config['targets'])+1}"
+    # Router info
     print("\n📡 Enter router information (IPTIME)")
     router_url = input("Router URL (e.g., http://192.168.0.1:80): ").strip()
     router_id = input("Router ID: ").strip()
     router_pw = getpass.getpass("Router PW: ")
-    
-    # PC to wake information
+    # PC info
     print("\n💻 Enter PC information to wake")
     mac_address = input("PC MAC address (e.g., 10:FF:E0:38:F4:D5): ").strip()
     lan_port_str = input("Router LAN port number connected to PC (e.g., 1-4): ").strip()
@@ -54,36 +63,27 @@ def initialize_config():
     except ValueError:
         print("⚠️  Invalid port number, defaulting to port check disabled")
         lan_port = 0
-    
-    # MSTSC information
+    # MSTSC info
     print("\n🖥️  Enter Remote Desktop information")
     rdp_server = input("Server address (e.g., 192.168.0.100:3389 or domain.com:3389): ").strip()
     rdp_id = input("RDP ID: ").strip()
     rdp_pw = getpass.getpass("RDP PW: ")
-    
-    # Save configuration
-    config_data = {
-        "router": {
-            "type": "iptime",
-            "url": router_url,
-            "id": router_id,
-            "pw": router_pw
-        },
-        "wol": {
-            "mac_address": mac_address,
-            "lan_port": lan_port
-        },
-        "rdp": {
-            "server": rdp_server,
-            "id": rdp_id,
-            "pw": rdp_pw
-        }
+    # Add to config/credentials
+    config["targets"].append({
+        "name": name,
+        "router": {"type": "iptime", "url": router_url},
+        "wol": {"mac_address": mac_address, "lan_port": lan_port},
+        "rdp": {"server": rdp_server}
+    })
+    credentials[name] = {
+        "router_id": router_id,
+        "router_pw": router_pw,
+        "rdp_id": rdp_id,
+        "rdp_pw": rdp_pw
     }
-    
-    config_manager = ConfigManager()
-    config_manager.save_config(config_data, master_password)
-    
-    print("\n✅ Configuration completed!")
+    config_manager.save_config(config)
+    config_manager.save_credentials(credentials, master_password)
+    print(f"\n✅ Target '{name}' added and configuration saved!")
     return master_password
 
 
@@ -126,133 +126,140 @@ def change_master_password():
 
 
 def options_menu():
-    """Show an interactive options menu."""
+    """Show an interactive options menu for multi-target config."""
     config_manager = ConfigManager()
-    
     while True:
         print("\n" + "=" * 60)
         print("Options")
         print("=" * 60)
-        print("1. Configure and Run")
-        print("2. Change Master Password")
-        print("3. Reset Configuration")
-        print("4. Exit")
+        print("1. Add/Configure Target")
+        print("2. Run (select target)")
+        print("3. Change Master Password")
+        print("4. Reset Configuration")
+        print("5. Migrate from old config.enc")
+        print("6. Exit")
         print()
-        choice = input("Select (1-4): ").strip()
-        
+        choice = input("Select (1-6): ").strip()
         if choice == "1":
-            master_password = initialize_config()
-            run_main_flow(master_password)
-            break
+            master_password = get_master_password(confirm=False, prompt="Enter master password: ")
+            initialize_config(master_password, add_target=True)
         elif choice == "2":
-            change_master_password()
-            break
+            master_password = get_master_password(confirm=False, prompt="Enter master password: ")
+            run_main_flow(master_password)
         elif choice == "3":
-            if config_manager.config_exists():
-                confirm = input("Are you sure you want to delete the configuration? (yes/no): ").strip().lower()
+            change_master_password()
+        elif choice == "4":
+            if config_manager.config_exists() or config_manager.credentials_exists():
+                confirm = input("Are you sure you want to delete ALL configuration? (yes/no): ").strip().lower()
                 if confirm == "yes":
                     config_manager.delete_config()
                 else:
                     print("Cancelled.")
             else:
                 print("No configuration file to delete.")
-            break
-        elif choice == "4":
+        elif choice == "5":
+            master_password = get_master_password(confirm=False, prompt="Enter master password for old config.enc: ")
+            config_manager.migrate_from_old("config.enc", master_password)
+        elif choice == "6":
             print("Exiting.")
             sys.exit(0)
         else:
-            print("Invalid selection. Please choose 1-4.")
+            print("Invalid selection. Please choose 1-6.")
 
 
 def run_main_flow(master_password: str):
-    """Execute the main flow: load config, send WOL (check link), wait if needed, connect MSTSC."""
+    """Select target, load config/credentials, run WOL+MSTSC for that target."""
     config_manager = ConfigManager()
-    
-    # Load and decrypt configuration
+    # Load config/credentials
     try:
-        config_data = config_manager.load_config(master_password)
+        config = config_manager.load_config()
     except Exception as e:
-        print(f"❌ Failed to load configuration: {e}")
-        print("   Please verify your master password")
+        print(f"❌ Failed to load config: {e}")
         sys.exit(1)
-    
-    print("\n✅ Configuration loaded successfully")
-    
-    # Execute WOL
+    try:
+        credentials = config_manager.load_credentials(master_password)
+    except Exception as e:
+        print(f"❌ Failed to load credentials: {e}")
+        sys.exit(1)
+    # Target 선택
+    targets = config.get("targets", [])
+    if not targets:
+        print("⚠️  No targets configured. Please add a target first.")
+        return
+    print("\nAvailable targets:")
+    for idx, t in enumerate(targets):
+        print(f"  {idx+1}. {t['name']} (RDP: {t['rdp']['server']})")
+    sel = input(f"Select target (1-{len(targets)}): ").strip()
+    try:
+        sel_idx = int(sel) - 1
+        assert 0 <= sel_idx < len(targets)
+    except Exception:
+        print("Invalid selection.")
+        return
+    target = targets[sel_idx]
+    name = target["name"]
+    cred = credentials.get(name)
+    if not cred:
+        print(f"❌ No credentials found for target '{name}'. Please re-add this target.")
+        return
+    # WOL
     print("\n" + "=" * 60)
-    print("📡 Sending WOL packet...")
+    print(f"📡 Sending WOL packet for target '{name}'...")
     print("=" * 60)
-    
     wol_obj = None
     try:
         wol_obj = IPTimeWOL(
-            router_url=config_data["router"]["url"],
-            router_id=config_data["router"]["id"],
-            router_pw=config_data["router"]["pw"]
+            router_url=target["router"]["url"],
+            router_id=cred["router_id"],
+            router_pw=cred["router_pw"]
         )
-        
-        wol_obj.send_wol_packet(config_data["wol"]["mac_address"])
+        wol_obj.send_wol_packet(target["wol"]["mac_address"])
         print("✅ WOL packet sent successfully")
-        
     except Exception as e:
         print(f"❌ WOL transmission failed: {e}")
         response = input("\nContinue anyway? (y/n): ").strip().lower()
         if response != 'y':
-            sys.exit(1)
-    
-    # Wait for PC to wake up with real-time status check
-    lan_port = config_data.get("wol", {}).get("lan_port", 0)
-    
+            return
+    # Wait for PC to wake up
+    lan_port = target.get("wol", {}).get("lan_port", 0)
     if wol_obj and lan_port > 0:
         print(f"\n⏳ Waiting for PC to wake up (checking port {lan_port} status)...")
         max_wait_seconds = 30
-        check_interval = 1  # Check every second
-        
+        check_interval = 1
         for elapsed in range(0, max_wait_seconds, check_interval):
             try:
                 if wol_obj.is_lan_port_up(lan_port):
                     print(f"✅ PC is awake! (port {lan_port} up after {elapsed} seconds)")
                     break
-            except Exception as e:
-                # Silent fail during checks, continue waiting
+            except Exception:
                 pass
-            
-            # Show progress
             if elapsed % 5 == 0 and elapsed > 0:
                 print(f"   Still waiting... ({elapsed}/{max_wait_seconds}s)")
-            
             time.sleep(check_interval)
         else:
-            # Timeout: loop completed without break
             print(f"\n❌ Timeout: Could not detect PC wake up after {max_wait_seconds} seconds")
             print("   The PC may still be booting, or WOL may have failed.")
             response = input("   Continue to Remote Desktop anyway? (y/n): ").strip().lower()
             if response != 'y':
-                sys.exit(1)
+                return
     else:
-        # No port check configured, use simple wait
         print("\n⏳ Waiting for PC to boot... (5 seconds, no port check configured)")
         time.sleep(5)
-    
-    # MSTSC connection
+    # MSTSC
     print("\n" + "=" * 60)
     print("🖥️  Connecting to Remote Desktop...")
     print("=" * 60)
-    
     try:
         mstsc = MSTSCConnector(
-            server=config_data["rdp"]["server"],
-            username=config_data["rdp"]["id"],
-            password=config_data["rdp"]["pw"]
+            server=target["rdp"]["server"],
+            username=cred["rdp_id"],
+            password=cred["rdp_pw"]
         )
-        
         mstsc.connect()
         print("✅ Remote Desktop connection initiated")
-        
     except Exception as e:
         print(f"❌ Remote Desktop connection failed: {e}")
-        sys.exit(1)
-    
+        return
     print("\n" + "=" * 60)
     print("🎉 All tasks completed!")
     print("=" * 60)

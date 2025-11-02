@@ -1,23 +1,28 @@
+
 # WOL-MSTSC
 
-**Wake-on-LAN + Remote Desktop Connection Tool**
+**Wake-on-LAN + Remote Desktop Connection Tool (Multi-Target, Secure, Editable)**
 
-A Windows utility that wakes up a remote PC via your router (Wake-on-LAN) and automatically connects to it via Remote Desktop (MSTSC).
+A Windows utility that wakes up one or more remote PCs via your router (Wake-on-LAN) and automatically connects to them via Remote Desktop (MSTSC). Now supports multiple named targets, editable config, and only encrypts sensitive credentials.
 
 ## 🎯 Key Features
 
-- ✅ **Master Password Security**: All sensitive data (router & RDP credentials) encrypted with a master password
+- ✅ **Multi-Target Support**: Register and manage multiple PCs/servers by name
+- ✅ **Editable Config**: All network info (IP, DNS, port, MAC, etc.) is stored in plain JSON for easy editing
+- ✅ **Master Password Security**: Only credentials (router & RDP id/pw) are encrypted with your master password
 - ✅ **IPTIME Router Support**: Send WOL packets via IPTIME routers
 - ✅ **Real-Time Wake Detection**: Monitors router port status every second (up to 30s) and connects immediately when PC is ready
 - ✅ **Automatic Remote Desktop**: Launches MSTSC as soon as PC wakes up
-- ✅ **Easy Setup**: Interactive configuration on first run
+- ✅ **Easy Setup & Migration**: Interactive configuration, add/upgrade targets, migrate from old config.enc
 - ✅ **Password Management**: Change master password or reset configuration anytime
+
 
 ## 📋 Requirements
 
 - **OS**: Windows 10/11
 - **Python**: 3.8 or higher (if not installed, Windows will prompt you to install from Microsoft Store)
 - **Network**: Access to your router's admin page
+
 
 ## 🚀 Installation
 
@@ -36,65 +41,65 @@ Run `run.bat` or manually install:
 pip install -r requirements.txt
 ```
 
+
 ## 📖 Usage
 
-### First Run (Initial Setup)
+### First Run & Migration
 
-Run `run.bat` (or `python wol_mstsc.py`):
-
-```bash
-run.bat
-```
+Run `run.bat` (or `python wol_mstsc.py`).
 
 **You will be prompted for your master password immediately.**
 
-- **Enter a password**: Proceeds with configuration or runs the WOL flow if already configured
-- **Press Enter (blank)**: Opens the options menu for setup, password change, or reset
+- **Enter a password**: Proceeds to target selection and WOL flow if already configured
+- **Press Enter (blank)**: Opens the options menu for setup, add/upgrade targets, password change, migration, or reset
 
-#### Initial Configuration
+#### Initial Configuration / Add Target
 
-On first run (or after selecting "Configure and Run" from the options menu), you'll provide:
+From the options menu, choose **Add/Configure Target**. For each target, you'll provide:
 
-1. **Master Password**: Entered twice to confirm (encrypts all settings)
+1. **Target Name**: Unique name for this PC/server (e.g., `main`, `office`, `server1`)
 2. **Router Information** (IPTIME):
-   - URL (e.g., `http://192.168.0.1:80` or `http://14.39.91.241:8112`)
-   - Login ID
-   - Login Password
+   - URL (e.g., `http://192.168.0.1:80`)
+   - Login ID (encrypted)
+   - Login Password (encrypted)
 3. **PC to Wake**:
    - MAC Address (e.g., `10:FF:E0:38:F4:D5`)
-   - Router LAN Port Number (e.g., `4` if your PC is connected to LAN port 4; used to detect if PC is already on)
+   - Router LAN Port Number (e.g., `4`)
 4. **Remote Desktop**:
-   - Server Address (e.g., `192.168.0.100:3389` or `domain.com:3389`)
-   - RDP Username
-   - RDP Password
+   - Server Address (e.g., `192.168.0.100:3389`)
+   - RDP Username (encrypted)
+   - RDP Password (encrypted)
 
-All configuration is saved encrypted in `config.enc`.
+You can add as many targets as you want. All network info is saved in `config.json` (plain), credentials in `credentials.enc` (encrypted).
+
+#### Migration from Old Version
+
+If you have an old `config.enc`, use the menu option **Migrate from old config.enc**. You'll be prompted for a target name and your master password. The tool will convert your old config to the new format.
 
 ### Normal Use
 
-After setup, just run `run.bat` and enter your master password when prompted. The program will:
+After setup, just run `run.bat` and enter your master password. The program will:
 
-1. Login to your router
-2. Send WOL packet to wake your PC
-3. **Monitor port link status in real-time** (checks every second for up to 30 seconds)
-4. Launch Remote Desktop as soon as PC is detected awake
-5. If timeout (30s) without wake detection, prompt to continue or abort
+1. Show a list of all registered targets (by name)
+2. Let you select which PC/server to wake and connect
+3. Login to your router
+4. Send WOL packet to wake your PC
+5. **Monitor port link status in real-time** (checks every second for up to 30 seconds)
+6. Launch Remote Desktop as soon as PC is detected awake
+7. If timeout (30s) without wake detection, prompt to continue or abort
+
 
 ## 🔧 Options Menu
 
 Press **Enter** (blank) at the master password prompt to access:
 
-- **Configure and Run**: Overwrite current config and proceed
-- **Change Master Password**: Update your master password (keeps all other settings)
-- **Reset Configuration**: Delete `config.enc` and start fresh
+- **Add/Configure Target**: Add a new PC/server or update info
+- **Run (select target)**: Choose a target and run WOL+MSTSC
+- **Change Master Password**: Update your master password (keeps all targets)
+- **Reset Configuration**: Delete all config and credentials
+- **Migrate from old config.enc**: Upgrade from previous version
 - **Exit**: Quit the program
 
-You can also use command-line arguments:
-
-```bash
-python wol_mstsc.py --change-password
-python wol_mstsc.py --reset-config
-```
 
 ## 📁 Project Structure
 
@@ -107,16 +112,20 @@ router-wol-mstsc/
 ├── mstsc_connector.py    # Remote Desktop connection
 ├── requirements.txt      # Python dependencies
 ├── run.bat               # Launcher batch script
-├── config.enc            # Encrypted config (auto-generated)
+├── config.json           # Plain config (targets, editable)
+├── credentials.enc       # Encrypted credentials (auto-generated)
 └── README.md             # This file
 ```
 
+
 ## 🔐 Security
 
-- All sensitive data (router credentials, RDP credentials) is encrypted with your master password
+- All sensitive data (router credentials, RDP credentials) is encrypted with your master password in `credentials.enc`
+- All network info (IP, DNS, port, MAC, etc.) is stored in plain `config.json` for easy editing
 - Uses **Fernet (AES-128)** encryption from the `cryptography` library
 - **PBKDF2** key derivation with 100,000 iterations
-- `config.enc` cannot be decrypted without the correct master password
+- `credentials.enc` cannot be decrypted without the correct master password
+
 
 ## 🌐 Supported Routers
 
@@ -126,6 +135,7 @@ Future enhancements may include:
 - Additional router brands (TP-Link, Asus, etc.)
 - Router type selection in configuration
 
+
 ## ⚙️ Tech Stack
 
 - **Python 3.8+**: Core language
@@ -133,12 +143,13 @@ Future enhancements may include:
 - **requests**: HTTP communication (router API)
 - **Windows MSTSC**: Remote Desktop client
 
+
 ## 🐛 Troubleshooting
 
-### "Failed to load configuration: Invalid master password..."
+### "Failed to load config/credentials: Invalid master password..."
 
 - You entered the wrong master password. Try again.
-- If the config file is corrupted, delete `config.enc` and reconfigure.
+- If the credentials file is corrupted, delete `credentials.enc` and reconfigure.
 
 ### "Router connection failed"
 
@@ -158,12 +169,14 @@ Future enhancements may include:
 - Ensure the PC has finished booting (may take longer than 5 seconds)
 - Confirm Remote Desktop is enabled on the target PC
 
+
 ## 📌 Notes
 
 - **Wake Detection**: If you configure a LAN port number, the program monitors port link status every second for up to 30 seconds. It connects immediately when the PC wakes up, or prompts to continue/abort after timeout.
 - **No Port Check**: If LAN port is set to 0 or invalid, uses a simple 5-second wait instead.
 - **MSTSC Auto-Login**: If you have saved credentials in Remote Desktop, it will log in automatically. Otherwise, you'll need to enter credentials manually.
 - **RDP Port**: Default is 3389. Specify a custom port in the server address if needed (e.g., `192.168.0.100:13389`).
+- **Config Structure**: All targets and network info are in `config.json` (plain). All credentials are in `credentials.enc` (encrypted, per target name).
 
 ## 📝 License
 
@@ -171,8 +184,15 @@ This project is for personal use.
 
 ## 🔄 Version History
 
+
+### v2.0.0 (2025-11-02)
+- **Multi-target support**: Register and select multiple PCs/servers by name
+- **Editable config**: All network info in plain `config.json`, only credentials encrypted
+- **Migration tool**: Upgrade from old `config.enc` to new format
+- **Menu overhaul**: Add/upgrade targets, select target to run, improved flows
+
 ### v1.2.0 (2025-11-01)
-- **Real-time wake detection**: Monitors port status every second (up to 30s max)
+- Real-time wake detection: Monitors port status every second (up to 30s max)
 - Connects immediately when PC is detected awake
 - Timeout error with option to continue or abort after 30s
 
