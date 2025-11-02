@@ -56,7 +56,10 @@ def initialize_config(master_password=None, add_target=False):
     router_pw = getpass.getpass("Router PW: ")
     # PC info
     print("\n💻 Enter PC information to wake")
-    mac_address = input("PC MAC address (e.g., 10:FF:E0:38:F4:D5): ").strip()
+    mac_address = input("PC MAC address (e.g., 1F:2F:3F:4F:5F:6F): ").strip()
+    if not mac_address:
+        mac_address = "00:00:00:00:00:00"  # Default MAC address if blank
+        print(f"[Info] No MAC address entered. Using default: {mac_address}")
     lan_port_str = input("Router LAN port number connected to PC (e.g., 1-4): ").strip()
     try:
         lan_port = int(lan_port_str)
@@ -125,6 +128,42 @@ def change_master_password():
         sys.exit(1)
 
 
+def install_command_to_path():
+    r"""Install a shortcut command (wolrdp.bat) to %USERPROFILE%\.local\bin and guide PATH setup."""
+def uninstall_command_from_path():
+    r"""Remove wolrdp.bat from %USERPROFILE%\.local\bin."""
+    import os
+    user_bin = os.path.expandvars(r"%USERPROFILE%\.local\bin")
+    bat_path = os.path.join(user_bin, "wolrdp.bat")
+    if os.path.exists(bat_path):
+        try:
+            os.remove(bat_path)
+            print(f"\n✅ 'wolrdp.bat' removed from: {bat_path}")
+        except Exception as e:
+            print(f"\n[!] Failed to remove: {e}")
+    else:
+        print(f"\n[!] 'wolrdp.bat' not found in {user_bin}")
+    import shutil
+    import os
+    user_bin = os.path.expandvars(r"%USERPROFILE%\.local\bin")
+    os.makedirs(user_bin, exist_ok=True)
+    bat_path = os.path.join(user_bin, "wolrdp.bat")
+    # Create a simple batch file that runs run.bat in this folder
+    script = f"@echo off\ncd /d \"{os.path.dirname(os.path.abspath(__file__))}\"\ncall run.bat %*\n"
+    with open(bat_path, "w", encoding="utf-8") as f:
+        f.write(script)
+    print(f"\n✅ 'wolrdp.bat' installed to: {bat_path}")
+    # Check if user_bin is in PATH
+    path_env = os.environ.get("PATH", "")
+    if user_bin.lower() not in [p.lower() for p in path_env.split(";")]:
+        print(f"\n[!] {user_bin} is not in your PATH.")
+        print("    Add it to your PATH environment variable to use 'wolrdp' from Win+R or any terminal.")
+        print("    Example (PowerShell):")
+        print(f"    [Environment]::SetEnvironmentVariable('PATH', $env:PATH + ';{user_bin}', 'User')")
+        print("    Or add via Windows System Properties > Environment Variables > User PATH")
+    else:
+        print("\nYou can now press Win+R and type 'wolrdp' to launch the tool from anywhere!")
+
 def options_menu():
     """Show an interactive options menu for multi-target config."""
     config_manager = ConfigManager()
@@ -137,9 +176,11 @@ def options_menu():
         print("3. Change Master Password")
         print("4. Reset Configuration")
         print("5. Migrate from old config.enc")
-        print("6. Exit")
+        print("6. Install command to PATH (Win+R: wolrdp)")
+        print("7. Uninstall command from PATH (remove wolrdp)")
+        print("8. Exit")
         print()
-        choice = input("Select (1-6): ").strip()
+        choice = input("Select (1-8): ").strip()
         if choice == "1":
             master_password = get_master_password(confirm=False, prompt="Enter master password: ")
             initialize_config(master_password, add_target=True)
@@ -161,10 +202,14 @@ def options_menu():
             master_password = get_master_password(confirm=False, prompt="Enter master password for old config.enc: ")
             config_manager.migrate_from_old("config.enc", master_password)
         elif choice == "6":
+            install_command_to_path()
+        elif choice == "7":
+            uninstall_command_from_path()
+        elif choice == "8":
             print("Exiting.")
             sys.exit(0)
         else:
-            print("Invalid selection. Please choose 1-6.")
+            print("Invalid selection. Please choose 1-8.")
 
 
 def run_main_flow(master_password: str):
