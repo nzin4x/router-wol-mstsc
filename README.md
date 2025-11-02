@@ -63,7 +63,7 @@ From the options menu, choose **Add/Configure Target**. For each target, you'll 
    - Login ID (encrypted)
    - Login Password (encrypted)
 3. **PC to Wake**:
-   - MAC Address (e.g., `10:FF:E0:38:F4:D5`)
+   - MAC Address (e.g., `1F:2F:3F:4F:5F:6F`)
    - Router LAN Port Number (e.g., `4`)
 4. **Remote Desktop**:
    - Server Address (e.g., `192.168.0.100:3389`)
@@ -159,7 +159,7 @@ Future enhancements may include:
 
 ### "WOL transmission failed"
 
-- Ensure MAC address format is correct (e.g., `10:FF:E0:38:F4:D5`)
+- Ensure MAC address format is correct (e.g., `1F:2F:3F:4F:5F:6F`)
 - Confirm WOL is enabled on your router
 - Check that your PC supports Wake-on-LAN (enabled in BIOS/UEFI)
 

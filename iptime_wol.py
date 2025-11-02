@@ -72,7 +72,7 @@ class IPTimeWOL:
             # Extract session ID from cookies
             if 'efm_session_id' in self.session.cookies:
                 self.session_id = self.session.cookies['efm_session_id']
-                print(f"✅ Router login successful (session: {self.session_id[:8]}...)")
+                print(f"✅ Router login successful (session: {self.session_id[:6]}...)")
                 return True
             else:
                 # Check response body
@@ -93,7 +93,7 @@ class IPTimeWOL:
         Send WOL packet
         
         Args:
-            mac_address: MAC address of PC to wake (e.g., 10:FF:E0:38:F4:D5)
+            mac_address: MAC address of PC to wake (e.g., 1F:2F:3F:4F:5F:6F)
             
         Returns:
             True if WOL sent successfully

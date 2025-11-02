@@ -1,5 +1,18 @@
 # WOL-MSTSC Changelog
 
+## v2.0.0 (2025-11-02)
+
+### Multi-Target, Editable Config, Secure Credentials
+- **Multiple named targets**: Register and select any number of PCs/servers by name
+- **Editable config**: All network info (IP, DNS, port, MAC, etc.) is stored in plain `config.json` for easy editing
+- **Credentials only encrypted**: Only router/RDP id/pw are encrypted in `credentials.enc` (per target)
+- **Migration tool**: Convert old `config.enc` to new format via menu
+- **Menu overhaul**: Add/upgrade targets, select target to run, improved flows
+- **Backward compatible**: Old config.enc can be migrated
+
+---
+# WOL-MSTSC Changelog
+
 ## v1.2.0 (2025-11-01)
 
 ### Real-Time Wake Detection
