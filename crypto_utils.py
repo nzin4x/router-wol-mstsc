@@ -12,6 +12,12 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+try:
+    import keyring
+    KEYRING_AVAILABLE = True
+except ImportError:
+    KEYRING_AVAILABLE = False
+
 
 def derive_key_from_password(password: str, salt: bytes) -> bytes:
     """
@@ -37,7 +43,7 @@ def derive_key_from_password(password: str, salt: bytes) -> bytes:
 def encrypt_data(data: str, password: str, salt: bytes = None) -> dict:
     """
     Encrypt data
-    
+     
     Args:
         data: Data to encrypt (string)
         password: Master password
@@ -118,3 +124,78 @@ def hash_password(password: str) -> str:
         Hash value (hex string)
     """
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ============================================================================
+# Windows Credential Manager Integration
+# ============================================================================
+
+SERVICE_NAME = "WOL-MSTSC"
+ACCOUNT_NAME = "MasterPassword"
+
+
+def is_keyring_available() -> bool:
+    """
+    Check if keyring (Windows Credential Manager) is available
+    
+    Returns:
+        True if keyring is available
+    """
+    return KEYRING_AVAILABLE
+
+
+def save_master_password(password: str) -> bool:
+    """
+    Save master password to Windows Credential Manager
+    
+    Args:
+        password: Master password to save
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    if not KEYRING_AVAILABLE:
+        return False
+    
+    try:
+        keyring.set_password(SERVICE_NAME, ACCOUNT_NAME, password)
+        return True
+    except Exception as e:
+        print(f"⚠️  Failed to save password to Credential Manager: {e}")
+        return False
+
+
+def load_master_password() -> str | None:
+    """
+    Load master password from Windows Credential Manager
+    
+    Returns:
+        Master password if found, None otherwise
+    """
+    if not KEYRING_AVAILABLE:
+        return None
+    
+    try:
+        password = keyring.get_password(SERVICE_NAME, ACCOUNT_NAME)
+        return password
+    except Exception as e:
+        print(f"⚠️  Failed to load password from Credential Manager: {e}")
+        return None
+
+
+def delete_master_password() -> bool:
+    """
+    Delete master password from Windows Credential Manager
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    if not KEYRING_AVAILABLE:
+        return False
+    
+    try:
+        keyring.delete_password(SERVICE_NAME, ACCOUNT_NAME)
+        return True
+    except Exception as e:
+        # Password might not exist, which is okay
+        return False

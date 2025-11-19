@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "name": "main",
+      "router": {
+        "type": "iptime",
+        "url": "http://nzpekr.iptime.org:8112"
+      },
+      "wol": {
+        "mac_address": "10:FF:E0:38:F4:D5",
+        "lan_port": 4
+      },
+      "rdp": {
+        "server": "nzpekr.iptime.org:7"
+      }
+    }
+  ]
+}

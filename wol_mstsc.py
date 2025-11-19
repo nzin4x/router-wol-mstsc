@@ -11,14 +11,35 @@ import getpass
 import argparse
 from pathlib import Path
 
-from crypto_utils import encrypt_data, decrypt_data, verify_password
+from crypto_utils import (
+    encrypt_data, decrypt_data, verify_password,
+    is_keyring_available, load_master_password, save_master_password, delete_master_password
+)
 from config_manager import ConfigManager
 from iptime_wol import IPTimeWOL
 from mstsc_connector import MSTSCConnector
 
 
-def get_master_password(confirm=False, prompt="Enter master password: "):
-    """Get master password input"""
+def get_master_password(confirm=False, prompt="Enter master password: ", allow_saved=True):
+    """
+    Get master password (from Windows Credential Manager or user input)
+    
+    Args:
+        confirm: If True, ask for password confirmation
+        prompt: Password input prompt
+        allow_saved: If True, try to load from Credential Manager first
+        
+    Returns:
+        Master password string
+    """
+    # Try to load from Windows Credential Manager
+    if allow_saved and is_keyring_available():
+        saved_password = load_master_password()
+        if saved_password:
+            print("🔑 Using saved master password from Windows Credential Manager")
+            return saved_password
+    
+    # Manual password input
     password = getpass.getpass(prompt)
     
     if confirm:
@@ -26,6 +47,15 @@ def get_master_password(confirm=False, prompt="Enter master password: "):
         if password != password_confirm:
             print("❌ Passwords do not match")
             sys.exit(1)
+    
+    # Ask if user wants to save to Credential Manager
+    if password and is_keyring_available() and not load_master_password():
+        save_choice = input("💾 Save this password to Windows Credential Manager? (y/n): ").strip().lower()
+        if save_choice == 'y':
+            if save_master_password(password):
+                print("✅ Master password saved to Windows Credential Manager")
+            else:
+                print("⚠️  Failed to save password")
     
     return password
 
@@ -123,9 +153,41 @@ def change_master_password():
     try:
         config_manager.change_master_password(old_password, new_password)
         print("\n✅ Master password changed successfully!\n")
+        
+        # Update saved password in Credential Manager if exists
+        if is_keyring_available() and load_master_password():
+            if save_master_password(new_password):
+                print("✅ Saved password in Credential Manager updated\n")
     except Exception as e:
         print(f"\n❌ Failed to change master password: {e}\n")
         sys.exit(1)
+
+
+def delete_saved_master_password():
+    """Delete saved master password from Windows Credential Manager"""
+    print("\n" + "=" * 60)
+    print("🗑️  Delete Saved Master Password")
+    print("=" * 60)
+    
+    if not is_keyring_available():
+        print("⚠️  Windows Credential Manager is not available")
+        return
+    
+    saved_password = load_master_password()
+    if not saved_password:
+        print("ℹ️  No saved master password found in Credential Manager")
+        return
+    
+    confirm = input("\n⚠️  Are you sure you want to delete the saved master password? (yes/no): ").strip().lower()
+    if confirm != "yes":
+        print("Cancelled.")
+        return
+    
+    if delete_master_password():
+        print("✅ Saved master password deleted from Windows Credential Manager")
+        print("   You will need to enter your password manually next time")
+    else:
+        print("⚠️  Failed to delete saved password")
 
 
 def install_command_to_path():
@@ -177,11 +239,12 @@ def options_menu():
         print("3. Change Master Password")
         print("4. Reset Configuration")
         print("5. Migrate from old config.enc")
-        print("6. Install command to PATH (Win+R: wolrdp)")
-        print("7. Uninstall command from PATH (remove wolrdp)")
-        print("8. Exit")
+        print("6. Delete Saved Master Password from Credential Manager")
+        print("7. Install command to PATH (Win+R: wolrdp)")
+        print("8. Uninstall command from PATH (remove wolrdp)")
+        print("9. Exit")
         print()
-        choice = input("Select (1-8): ").strip()
+        choice = input("Select (1-9): ").strip()
         if choice == "1":
             master_password = get_master_password(confirm=False, prompt="Enter master password: ")
             initialize_config(master_password, add_target=True)
@@ -203,17 +266,19 @@ def options_menu():
             master_password = get_master_password(confirm=False, prompt="Enter master password for old config.enc: ")
             config_manager.migrate_from_old("config.enc", master_password)
         elif choice == "6":
-            install_command_to_path()
+            delete_saved_master_password()
         elif choice == "7":
-            uninstall_command_from_path()
+            install_command_to_path()
         elif choice == "8":
+            uninstall_command_from_path()
+        elif choice == "9":
             print("Exiting.")
             sys.exit(0)
         else:
-            print("Invalid selection. Please choose 1-8.")
+            print("Invalid selection. Please choose 1-9.")
 
 
-def run_main_flow(master_password: str):
+def run_main_flow(master_password: str, select_mode: bool = False):
     """Select target, load config/credentials, run WOL+MSTSC for that target."""
     config_manager = ConfigManager()
     # Load config/credentials
@@ -227,88 +292,112 @@ def run_main_flow(master_password: str):
     except Exception as e:
         print(f"❌ Failed to load credentials: {e}")
         sys.exit(1)
-    # Target 선택
+    # 반복 루프: 사용자가 q(quit) 또는 Ctrl+C를 누르기 전까지 계속 재연결
+    import sys
+
     targets = config.get("targets", [])
     if not targets:
         print("⚠️  No targets configured. Please add a target first.")
         return
-    print("\nAvailable targets:")
-    for idx, t in enumerate(targets):
-        print(f"  {idx+1}. {t['name']} (RDP: {t['rdp']['server']})")
-    sel = input(f"Select target (1-{len(targets)}): ").strip()
-    try:
-        sel_idx = int(sel) - 1
-        assert 0 <= sel_idx < len(targets)
-    except Exception:
-        print("Invalid selection.")
-        return
+
+    if select_mode:
+        print("\nAvailable targets:")
+        for idx, t in enumerate(targets):
+            print(f"  {idx+1}. {t['name']} (RDP: {t['rdp']['server']})")
+        sel = input(f"Select target (1-{len(targets)}) [default: 1]: ").strip()
+        if not sel:
+            sel = "1"
+            print(f"  → Using default target: 1")
+        try:
+            sel_idx = int(sel) - 1
+            assert 0 <= sel_idx < len(targets)
+        except Exception:
+            print("Invalid selection.")
+            return
+    else:
+        sel_idx = 0
+        print(f"Auto-selecting target 1: {targets[0]['name']} (RDP: {targets[0]['rdp']['server']})")
+
     target = targets[sel_idx]
     name = target["name"]
     cred = credentials.get(name)
     if not cred:
         print(f"❌ No credentials found for target '{name}'. Please re-add this target.")
         return
-    # WOL
-    print("\n" + "=" * 60)
-    print(f"📡 Sending WOL packet for target '{name}'...")
-    print("=" * 60)
-    wol_obj = None
-    try:
-        wol_obj = IPTimeWOL(
-            router_url=target["router"]["url"],
-            router_id=cred["router_id"],
-            router_pw=cred["router_pw"]
-        )
-        wol_obj.send_wol_packet(target["wol"]["mac_address"])
-        print("✅ WOL packet sent successfully")
-    except Exception as e:
-        print(f"❌ WOL transmission failed: {e}")
-        response = input("\nContinue anyway? (y/n): ").strip().lower()
-        if response != 'y':
-            return
-    # Wait for PC to wake up
-    lan_port = target.get("wol", {}).get("lan_port", 0)
-    if wol_obj and lan_port > 0:
-        print(f"\n⏳ Waiting for PC to wake up (checking port {lan_port} status)...")
-        max_wait_seconds = 30
-        check_interval = 1
-        for elapsed in range(0, max_wait_seconds, check_interval):
-            try:
-                if wol_obj.is_lan_port_up(lan_port):
-                    print(f"✅ PC is awake! (port {lan_port} up after {elapsed} seconds)")
-                    break
-            except Exception:
-                pass
-            if elapsed % 5 == 0 and elapsed > 0:
-                print(f"   Still waiting... ({elapsed}/{max_wait_seconds}s)")
-            time.sleep(check_interval)
-        else:
-            print(f"\n❌ Timeout: Could not detect PC wake up after {max_wait_seconds} seconds")
-            print("   The PC may still be booting, or WOL may have failed.")
-            response = input("   Continue to Remote Desktop anyway? (y/n): ").strip().lower()
+
+    while True:
+        # WOL
+        print("\n" + "=" * 60)
+        print(f"📡 Sending WOL packet for target '{name}'...")
+        print("=" * 60)
+        wol_obj = None
+        try:
+            wol_obj = IPTimeWOL(
+                router_url=target["router"]["url"],
+                router_id=cred["router_id"],
+                router_pw=cred["router_pw"]
+            )
+            wol_obj.send_wol_packet(target["wol"]["mac_address"])
+            print("✅ WOL packet sent successfully")
+        except Exception as e:
+            print(f"❌ WOL transmission failed: {e}")
+            response = input("\nContinue anyway? (y/n): ").strip().lower()
             if response != 'y':
-                return
-    else:
-        print("\n⏳ Waiting for PC to boot... (5 seconds, no port check configured)")
-        time.sleep(5)
-    # MSTSC
-    print("\n" + "=" * 60)
-    print("🖥️  Connecting to Remote Desktop...")
-    print("=" * 60)
-    try:
-        mstsc = MSTSCConnector(
-            server=target["rdp"]["server"],
-            username=cred["rdp_id"],
-            password=cred["rdp_pw"]
-        )
-        mstsc.connect()
-        print("✅ Remote Desktop connection initiated")
-    except Exception as e:
-        print(f"❌ Remote Desktop connection failed: {e}")
-        return
-    print("\n" + "=" * 60)
-    print("🎉 All tasks completed!")
-    print("=" * 60)
+                continue
+        # Wait for PC to wake up
+        lan_port = target.get("wol", {}).get("lan_port", 0)
+        if wol_obj and lan_port > 0:
+            print(f"\n⏳ Waiting for PC to wake up (checking port {lan_port} status)...")
+            max_wait_seconds = 30
+            check_interval = 1
+            for elapsed in range(0, max_wait_seconds, check_interval):
+                try:
+                    if wol_obj.is_lan_port_up(lan_port):
+                        print(f"✅ PC is awake! (port {lan_port} up after {elapsed} seconds)")
+                        break
+                except Exception:
+                    pass
+                if elapsed % 5 == 0 and elapsed > 0:
+                    print(f"   Still waiting... ({elapsed}/{max_wait_seconds}s)")
+                time.sleep(check_interval)
+            else:
+                print(f"\n❌ Timeout: Could not detect PC wake up after {max_wait_seconds} seconds")
+                print("   The PC may still be booting, or WOL may have failed.")
+                response = input("   Continue to Remote Desktop anyway? (y/n): ").strip().lower()
+                if response != 'y':
+                    continue
+        else:
+            print("\n⏳ Waiting for PC to boot... (5 seconds, no port check configured)")
+            time.sleep(5)
+        # MSTSC
+        print("\n" + "=" * 60)
+        print("🖥️  Connecting to Remote Desktop...")
+        print("=" * 60)
+        try:
+            mstsc = MSTSCConnector(
+                server=target["rdp"]["server"],
+                username=cred["rdp_id"],
+                password=cred["rdp_pw"]
+            )
+            mstsc.connect()
+            print("✅ Remote Desktop connection initiated")
+        except Exception as e:
+            print(f"❌ Remote Desktop connection failed: {e}")
+            continue
+        print("\n" + "=" * 60)
+        print("🎉 All tasks completed!")
+        print("=" * 60)
+        # 명시적 키 입력 대기: r(재연결), q(종료), Enter(재연결)
+        print("\nPress [r] to reconnect, [q] to quit, or Enter to reconnect...")
+        try:
+            user_input = input().strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\nProgram interrupted by user")
+            sys.exit(0)
+        if user_input == 'q':
+            print("Exiting program.")
+            break
+        # r 또는 Enter면 루프 반복 (재연결)
 
 
 def main():
@@ -333,22 +422,36 @@ def main():
         master_password = initialize_config()
     
     # Run the main flow
-    run_main_flow(master_password)
+    run_main_flow(master_password, select_mode=False)
 
 
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='WOL-MSTSC: Wake-on-LAN + Remote Desktop Connection Tool')
-    parser.add_argument('--change-password', action='store_true', 
-                       help='Change master password')
-    
+    parser.add_argument('--change-password', action='store_true', help='Change master password')
+    parser.add_argument('-s', '--select', action='store_true', help='Select RDP target profile interactively')
+
     args = parser.parse_args()
-    
+
     try:
         if args.change_password:
             change_master_password()
         else:
-            main()
+            # select_mode: True면 타겟 선택, False면 1번 자동
+            def main_with_select():
+                print("=" * 60)
+                print("🚀 WOL-MSTSC Program Start")
+                print("=" * 60)
+                config_manager = ConfigManager()
+                master_password = get_master_password(confirm=False, prompt="Enter master password (or press Enter for options): ")
+                if master_password == "":
+                    options_menu()
+                    return
+                if not config_manager.config_exists():
+                    print("\n⚠️  No configuration found. Starting initial setup...")
+                    master_password = initialize_config()
+                run_main_flow(master_password, select_mode=args.select)
+            main_with_select()
     except KeyboardInterrupt:
         print("\n\nProgram interrupted by user")
         sys.exit(0)
