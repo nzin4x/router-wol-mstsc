@@ -45,12 +45,12 @@ class MSTSCConnector:
         temp_dir = Path(tempfile.gettempdir())
         rdp_file = temp_dir / "wol_mstsc_temp.rdp"
         
-        # Write RDP file content
+        # Write RDP file content (멀티모니터 + 최소 해상도)
         rdp_content = [
+            "use multimon:i:1",  # 모든 데스크탑 확장(멀티모니터)
             "screen mode id:i:2",  # Full screen
-            f"desktopwidth:i:1920",
-            f"desktopheight:i:1080",
-            "session bpp:i:32",  # 색상 깊이
+            # desktopwidth/height는 멀티모니터일 때 자동 적용
+            "session bpp:i:8",  # 색상 깊이(최소, 네트워크 대역폭 최소화)
             "compression:i:1",
             "keyboardhook:i:2",
             "audiocapturemode:i:0",
