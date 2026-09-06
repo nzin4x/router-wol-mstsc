@@ -26,20 +26,28 @@ A Windows utility that wakes up one or more remote PCs via your router (Wake-on-
 
 ## 🚀 Installation
 
-### 1. Download the Project
+### One-Command Install (new PC)
+
+Run this in PowerShell to clone the repo, install dependencies, and register the `wolrdp` command in one shot:
+
+```powershell
+git clone https://github.com/nzin4x/router-wol-mstsc.git "$env:USERPROFILE\router-wol-mstsc"; cd "$env:USERPROFILE\router-wol-mstsc"; pip install -r requirements.txt; python wol_mstsc.py --install
+```
+
+- No virtualenv is used — dependencies install into your system/user Python.
+- `--install` copies a `wolrdp.bat` launcher into `%USERPROFILE%\.local\bin`. If that folder isn't already on your `PATH`, the command prints the exact line to add it (or add it once via *System Properties > Environment Variables > User PATH*).
+- Open a **new** terminal (or press Win+R) after updating PATH, then run `wolrdp` from anywhere to start setup (blank password → options menu → **Add/Configure Target**).
+- To remove it later: `python wol_mstsc.py --uninstall` (or options menu item **8**).
+
+### Manual Install
 
 ```bash
 git clone https://github.com/nzin4x/router-wol-mstsc.git
 cd router-wol-mstsc
-```
-
-### 2. Install Dependencies
-
-Run `run.bat` or manually install:
-
-```bash
 pip install -r requirements.txt
 ```
+
+Run `run.bat` (checks/installs dependencies automatically) or `python wol_mstsc.py` directly.
 
 
 ## 📖 Usage
@@ -98,6 +106,9 @@ Press **Enter** (blank) at the master password prompt to access:
 - **Change Master Password**: Update your master password (keeps all targets)
 - **Reset Configuration**: Delete all config and credentials
 - **Migrate from old config.enc**: Upgrade from previous version
+- **Delete Saved Master Password**: Remove the password saved in Windows Credential Manager
+- **Install command to PATH**: Register `wolrdp` (same as `python wol_mstsc.py --install`)
+- **Uninstall command from PATH**: Remove `wolrdp` (same as `python wol_mstsc.py --uninstall`)
 - **Exit**: Quit the program
 
 

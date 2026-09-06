@@ -120,6 +120,41 @@ def initialize_config(master_password=None, add_target=False):
     return master_password
 
 
+def repair_missing_credentials(master_password=None):
+    """Config exists but credentials.enc is missing/incomplete (e.g. fresh clone,
+    since credentials.enc is gitignored while config.json is tracked). Prompt for
+    credentials of existing targets that lack them, without creating duplicates."""
+    print("=" * 60)
+    print("🔧 Restoring credentials for existing targets")
+    print("=" * 60)
+    config_manager = ConfigManager()
+    config = config_manager.load_config()
+    if not master_password:
+        master_password = get_master_password(confirm=True)
+    try:
+        credentials = config_manager.load_credentials(master_password) if config_manager.credentials_exists() else {}
+    except Exception:
+        credentials = {}
+    for target in config.get("targets", []):
+        name = target["name"]
+        if name in credentials:
+            continue
+        print(f"\n💻 Target '{name}' (RDP: {target['rdp']['server']}) is missing credentials.")
+        router_id = input("Router ID: ").strip()
+        router_pw = getpass.getpass("Router PW: ")
+        rdp_id = input("RDP ID: ").strip()
+        rdp_pw = getpass.getpass("RDP PW: ")
+        credentials[name] = {
+            "router_id": router_id,
+            "router_pw": router_pw,
+            "rdp_id": rdp_id,
+            "rdp_pw": rdp_pw
+        }
+    config_manager.save_credentials(credentials, master_password)
+    print("\n✅ Credentials restored!")
+    return master_password
+
+
 def change_master_password():
     """Change master password"""
     print("=" * 60)
@@ -293,8 +328,6 @@ def run_main_flow(master_password: str, select_mode: bool = False):
         print(f"❌ Failed to load credentials: {e}")
         sys.exit(1)
     # 반복 루프: 사용자가 q(quit) 또는 Ctrl+C를 누르기 전까지 계속 재연결
-    import sys
-
     targets = config.get("targets", [])
     if not targets:
         print("⚠️  No targets configured. Please add a target first.")
@@ -416,11 +449,16 @@ def main():
         options_menu()
         return
     
-    # If no config exists, must initialize first
+    # If no config exists at all, run initial setup; if config exists but
+    # credentials are missing (e.g. fresh clone with gitignored credentials.enc),
+    # just restore credentials for the existing targets.
     if not config_manager.config_exists():
         print("\n⚠️  No configuration found. Starting initial setup...")
-        master_password = initialize_config()
-    
+        master_password = initialize_config(master_password)
+    elif not config_manager.credentials_exists():
+        print("\n⚠️  Configuration found but credentials are missing. Restoring credentials...")
+        master_password = repair_missing_credentials(master_password)
+
     # Run the main flow
     run_main_flow(master_password, select_mode=False)
 
@@ -430,11 +468,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='WOL-MSTSC: Wake-on-LAN + Remote Desktop Connection Tool')
     parser.add_argument('--change-password', action='store_true', help='Change master password')
     parser.add_argument('-s', '--select', action='store_true', help='Select RDP target profile interactively')
+    parser.add_argument('--install', action='store_true', help="Install 'wolrdp' command to %%USERPROFILE%%\\.local\\bin and exit")
+    parser.add_argument('--uninstall', action='store_true', help="Remove the installed 'wolrdp' command and exit")
 
     args = parser.parse_args()
 
     try:
-        if args.change_password:
+        if args.install:
+            install_command_to_path()
+        elif args.uninstall:
+            uninstall_command_from_path()
+        elif args.change_password:
             change_master_password()
         else:
             # select_mode: True면 타겟 선택, False면 1번 자동
@@ -449,7 +493,10 @@ if __name__ == "__main__":
                     return
                 if not config_manager.config_exists():
                     print("\n⚠️  No configuration found. Starting initial setup...")
-                    master_password = initialize_config()
+                    master_password = initialize_config(master_password)
+                elif not config_manager.credentials_exists():
+                    print("\n⚠️  Configuration found but credentials are missing. Restoring credentials...")
+                    master_password = repair_missing_credentials(master_password)
                 run_main_flow(master_password, select_mode=args.select)
             main_with_select()
     except KeyboardInterrupt:

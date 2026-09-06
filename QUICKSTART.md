@@ -34,13 +34,18 @@ Press **Enter** (blank password) to access:
 - **3**: Change master password only
 - **4**: Delete all configuration
 - **5**: Migrate from old config.enc
-- **6**: Exit
+- **6**: Delete saved master password from Credential Manager
+- **7**: Install `wolrdp` command to PATH
+- **8**: Uninstall `wolrdp` command from PATH
+- **9**: Exit
 
 ## Command Line
 
 ```bash
-python wol_mstsc.py                 # Normal run
+python wol_mstsc.py                     # Normal run
 python wol_mstsc.py --change-password   # Change password
+python wol_mstsc.py --install           # Install 'wolrdp' to PATH (one-shot setup on a new PC)
+python wol_mstsc.py --uninstall         # Remove 'wolrdp' from PATH
 ```
 
 ## Files
